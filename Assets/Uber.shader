@@ -2,7 +2,7 @@
 {
     Properties
     {
-        //_MainTex ("Texture", 2D) = "white" {}
+        _MainTex ("Texture", 2D) = "white" {}
 		_OutlineColor ("OutlineColor",Color) = (1,1,1,1)
 		_FilterValue("FilterValue",Range(0,1))=0.374
     }
@@ -48,31 +48,34 @@
 				float4 scrPos:TEXCOORD1;
 			};
 
-            //sampler2D _MainTex;
-            //float4 _MainTex_ST;
+            sampler2D _MainTex;
+            float4 _MainTex_ST;
 			sampler2D _OutlineTexture;
 			float4 _OutlineTexture_ST;
 			sampler2D _CameraDepthTexture;
 
 			float _FilterValue;
 			half4 _OutlineColor;
-			half4 vertexs[3] = {
-				{-1,0,0,1},
-				{1,0,0,1},
-				{0,1,0,1}
-			};
 			//Vertex Shader  
 			v2f vert (appdata v) {
-
+				/*const half4 vertexs[3] = {
+					{-1,-1,0,1},
+					{-1,3,0,1},
+					{3,-1,0,1}
+				};*/
 				v2f o;
-				o.pos = vertexs[v.vid];// UnityObjectToClipPos (v.vertex);
+				
+				o.pos = UnityObjectToClipPos (v.vertex);
 				o.scrPos = ComputeScreenPos (o.pos);
-				o.scrPos = vertexs[v.vid];
+				//o.pos = vertexs[v.vid];
+				//o.scrPos = vertexs[v.vid];
 				return o;
 			}
 			//Fragment Shader  
 			half4 frag (v2f i) : COLOR{
-				return half4(1,0,0,1);
+				//return float4(1, 0, 0, 1);
+				float2 outline1 = tex2D (_OutlineTexture,i.scrPos).rg;
+				return half4(outline1.x, outline1.y, 0, 1);
 			    float depthValue = Linear01Depth (tex2Dproj (_CameraDepthTexture,UNITY_PROJ_COORD (i.scrPos)).r);
 				bool needClip = (0.00001 >= depthValue) ? true : false;
 				if (needClip)discard;

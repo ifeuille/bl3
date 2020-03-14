@@ -68,10 +68,13 @@ groupshared SharedBuffer2 g4[12];
 
 //screensize/10 for dispath
 [numthreads(10,10,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+void CSMain (int3 groupThreadID : SV_GroupThreadID,//screen.x/10,y/10,1
+	int3 dispatchThreadID : SV_DispatchThreadID,
+	int idInGroup : SV_GroupIndex,
+	int3 groupID : SV_GroupID)//10,10,1
 {
 	int2 screenPos = (int2)screenSize.xy;
 
-	_OutlineTexture[id.xy].xy = screenPos.xy;
+	_OutlineTexture[dispatchThreadID.xy].xy = float2(1, 0.5);// screenPos.xy;
     //Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 }

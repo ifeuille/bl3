@@ -10,6 +10,7 @@ public class BorderLand3 : MonoBehaviour
     public Shader uberShader;
     public Material material;
     private RenderTexture m_OutlineTexture;
+    public CameraManager cameraManager;
 
     public struct CmdBufferEntry
     {
@@ -18,13 +19,14 @@ public class BorderLand3 : MonoBehaviour
     private Dictionary<Camera, CmdBufferEntry> m_Cameras = new Dictionary<Camera, CmdBufferEntry>();
 
     private void Awake()
-    {
-        camera.depthTextureMode = DepthTextureMode.Depth;
-
+    {        
         m_OutlineTexture = new RenderTexture(Screen.width, Screen.height, 0, RenderTextureFormat.RG16);
         m_OutlineTexture.name = "Outline RT";
         m_OutlineTexture.enableRandomWrite = true;
         m_OutlineTexture.Create();
+
+        
+
     }
     private void OnDestroy()
     {
@@ -33,22 +35,17 @@ public class BorderLand3 : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-
+        
     }
 
-    // Update is called once per frame
-    void Update()
+    //private void OnRenderImage(RenderTexture source, RenderTexture destination)
+    //{
+    //    Graphics.Blit(source, destination,material);
+    //}
+
+    private void UpdateCommand()
     {
-        //outLineComputeShader.SetTexture("_DepthTexture",)
-    }
-
-    private void OnRenderImage(RenderTexture source, RenderTexture destination)
-    {        
-        Graphics.Blit(source, destination,material);
-    }
-    private void Draw()
-    {
-        var cam = Camera.main;
+        var cam = camera;
         if (!cam) return;
         CmdBufferEntry buf = new CmdBufferEntry();
         if (m_Cameras.ContainsKey(cam))
@@ -64,19 +61,25 @@ public class BorderLand3 : MonoBehaviour
             m_Cameras[cam] = buf;
             cam.AddCommandBuffer(CameraEvent.AfterForwardOpaque, buf.m_AfterScene);
         }
+        //outLineComputeShader.SetTexture(outLineComputeShader.FindKernel("CSMain"), "_OutlineTexture", m_OutlineTexture);
+        //outLineComputeShader.SetTextureFromGlobal(
+        //    outLineComputeShader.FindKernel("CSMain"),
+        //    Shader.PropertyToID("_DepthTexture"), 
+        //    Shader.PropertyToID("_DepthTexture"));
+        int x = (int)(Screen.width / 10 + 0.5);
+        int y = (int)(Screen.height / 10 + 0.5);
+        //outLineComputeShader.Dispatch(outLineComputeShader.FindKernel("CSMain"), x, y, 1);
+
         var cb = buf.m_AfterScene;
         cb.Clear();
         cb.SetGlobalTexture("_OutlineTexture", m_OutlineTexture);
-        cb.SetGlobalTexture("_DepthTexture", cam.activeTexture.depthBuffer);
-        int x = (int)(Screen.width / 10 + 0.5);
-        int y = (int)(Screen.height / 10 + 0.5);
-
-        cb.DispatchCompute(outLineComputeShader, outLineComputeShader.FindKernel("CSMain"), x,y,1);
-        cb.SetRenderTarget(cam.activeTexture.colorBuffer, cam.activeTexture.depthBuffer);
+        cb.SetGlobalTexture("_DepthTexture", cameraManager.GetDepthRTID());
         
+        cb.DispatchCompute(outLineComputeShader, outLineComputeShader.FindKernel("CSMain"), x,y,1);
+
+        cb.SetRenderTarget(cameraManager.GetColorRTID(), cameraManager.GetDepthRTID());    
         cb.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3);
-
-
+        
     }
 
 }
