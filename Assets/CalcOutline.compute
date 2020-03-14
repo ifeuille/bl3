@@ -1,0 +1,77 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+/*
+cb0=
+{
+[0]=(0.5,-0.5,0.5,0.5),
+[1]=(-1,1,-1,1),
+[2]=(0,0,-2,2),
+[3]=(1,1,-1,-1),
+[4]=(2,-2,0,0),
+[5]=(-1,1,1,1),
+[6]=(-1,-1,1,-1),
+[7]=(0,1,0,-1),
+[8]=(-1,0,1,0),
+[9]=(1360,768,0.001,0.001),
+[10]=(65000,0,2,1)
+};
+b1[138]=0
+b1[139]=(1360,768,0.001,0.001)
+
+136,77,1
+1360/10,768/10+1
+也就是10x10个像素为一组进行计算
+screensize=1360,768
+
+*/
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float2> _OutlineTexture;
+
+Texture2D<float> _DepthTexture : register(t0);
+
+
+cbuffer cb0
+{
+	float4 data0;
+	float4 data1;
+	float4 data2;
+	float4 data3;
+	float4 data4;
+	float4 data5;
+	float4 data6;
+	float4 data7;
+	float4 data8;
+	float4 screenSize;//(1360,768,0.001,0.001),
+	float4 data10;
+}
+cbuffer cb1
+{
+	float4 data[140];
+};
+
+struct SharedBuffer1
+{
+	float4 data[4];
+};
+struct SharedBuffer2
+{
+	float4 data[8];
+};
+groupshared SharedBuffer1 g0[12];
+groupshared SharedBuffer1 g1[12];
+groupshared SharedBuffer1 g2[12];
+groupshared SharedBuffer1 g3[12];
+groupshared SharedBuffer2 g4[12];
+
+//screensize/10 for dispath
+[numthreads(10,10,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	int2 screenPos = (int2)screenSize.xy;
+
+	_OutlineTexture[id.xy].xy = screenPos.xy;
+    //Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}
