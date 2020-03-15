@@ -168,7 +168,10 @@ public class CameraManager : MonoBehaviour
         int computeKenel = outLineComputeShader.FindKernel("CSMain");
         cb.SetComputeTextureParam(outLineComputeShader, computeKenel, Shader.PropertyToID("_DepthTexture"), GetDepthRTID());
         cb.SetComputeTextureParam(outLineComputeShader, computeKenel, Shader.PropertyToID("_OutlineTexture"), m_OutlineTexture);
-        
+        //cb
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("screenSize"),
+            new Vector4(Screen.width, Screen.height, 1.0f / Screen.width, 1.0f / Screen.height));
+
         cb.DispatchCompute(outLineComputeShader, computeKenel, x, y, 1);
         //cb.SetRenderTarget(GetColorRTID(), GetDepthRTID());
         //cb.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3);

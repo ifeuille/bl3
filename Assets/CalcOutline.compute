@@ -16,6 +16,7 @@ cb0=
 [9]=(1360,768,0.001,0.001),
 [10]=(65000,0,2,1)
 };
+b1[65]=(0,0,0.1,0)
 b1[138]=0
 b1[139]=(1360,768,0.001,0.001)
 
@@ -66,15 +67,81 @@ groupshared SharedBuffer1 g2[12];
 groupshared SharedBuffer1 g3[12];
 groupshared SharedBuffer2 g4[12];
 
+
+float GetDepthValue (float2 pos)
+{
+	float oriDepth = _DepthTexture[pos].x;//深度值,不知道要不要先做线性化处理
+	//裁剪
+	bool needfilterDepth = oriDepth > 0.875 ? true : false;
+	float unknown2 = oriDepth * 8.0 - 7.0;
+	float filterDepth = needfilterDepth ? unknown2 : oriDepth;//?
+	const float4 b1_65 = (0, 0, 0.1, 0);//todo
+	unknown2 = filterDepth * b1_65.x + b1_65.y;
+	filterDepth = filterDepth * b1_65.z - b1_65.w;
+	filterDepth = 1.0 / filterDepth;//归一化
+	filterDepth = filterDepth + unknown2;
+
+}
+
 //screensize/10 for dispath
 [numthreads(10,10,1)]
-void CSMain (int3 groupThreadID : SV_GroupThreadID,//screen.x/10,y/10,1
-	int3 dispatchThreadID : SV_DispatchThreadID,
-	int idInGroup : SV_GroupIndex,
-	int3 groupID : SV_GroupID)//10,10,1
+void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线程组内的线程ID，goup内的坐标,同格子用这个偏移
+	int3 vThreadID : SV_DispatchThreadID,//全局ID
+	int idInGroup : SV_GroupIndex,//线程组内的线程ID
+	int3 vThreadGroupID : SV_GroupID)//10,10,1,线程组ID
 {
-	int2 screenPos = (int2)screenSize.xy;
+	int2 leftTop = floor (data[138].xy);//可能是个偏移
+	int4 screenPos = leftTop.xyyy + vThreadID.xyyy;//像素坐标
+	int xIndexOfRight10Pixel = vThreadIDInGroup.x + 1;//右边一个像素很坐标索引
+	float4 screenPosFloat = (float4)screenPos;
+	float2 rightBottomPos = data[138].xy + data[139].xy;//右下角坐标，data[138].xy是左上角坐标，data[139].xy是矩形尺寸
+	screenPosFloat.xy = max (screenPosFloat.xy, data[138].xy);//大于左上角
+	screenPosFloat.xy = min (screenPosFloat.xy, rightBottomPos.xy);//小于右下角
+	int2 pixelPos = int2(screenPosFloat.xy);//目标的像素坐标
+	float oriDepth = _DepthTexture[pixelPos].x;//深度值,不知道要不要先做线性化处理
+	//裁剪
+	bool needfilterDepth = oriDepth > 0.875 ? true : false;
+	float unknown2 = oriDepth * 8.0 - 7.0;
+	float filterDepth = needfilterDepth? unknown2: oriDepth;//?
+	const float4 b1_65 = (0, 0, 0.1, 0);//todo
+	unknown2 = filterDepth * b1_65.x + b1_65.y;
+	filterDepth = filterDepth * b1_65.z - b1_65.w;
+	filterDepth = 1.0 / filterDepth;//归一化
+	filterDepth = filterDepth + unknown2;
+	//同一个格子内的偏移计算
+	float r4_y = 0.5;
+	float2 r2_xy = 0;
+	r2_xy = r2_xy * 4.008016 - 2.003978;
+	int2 groupYShift = vThreadIDInGroup.yy << (2, 3);//格子内纵向向下偏移几个像素
+	groupYShift += (4，8);
+	g1[groupYShift.x].data[groupYShift.x].x = oriDepth;
+	g0[groupYShift.x].data[groupYShift.x].x = filterDepth;
+	int2 r5_xy = unknown2.xy & (2, 1);//?
+	r5_xy = r5_xy != 0;
+	g2[groupYShift.x].data[groupYShift.x].x = r5_xy.x;
+	g3[groupYShift.x].data[groupYShift.x].x = r5_xy.y;
+	g4[groupYShift.x].data[groupYShift.y].xy = r2_xy.xy;
 
-	_OutlineTexture[dispatchThreadID.xy].xy = float2(1, 0.5);// screenPos.xy;
+
+	int2 pixelPos1 = vThreadGroupID.xy * 10 + leftTop.xy;//当前格子的左上角像素
+	pixelPos1 -= 1;//当前格子的左上角格子的右下角素
+	int unknown3 = vThreadIDInGroup.y * 10 + vThreadIDInGroup.x;//不知道什么坐标
+	int r5_x = unknown3 / 12;
+	int2  r6;
+	r6.x = unknown3 % 12;
+	r6.y = r5_x;
+	int2 unknown4 = pixelPos1 + r6;
+	float2 pixPos2 = float2(unknown4);
+	pixPos2 = max (cb[138].xy, pixPos2);
+	pixPos2 = min (rightBottomPos, pixPos2);
+	int2 pixelPos2 = (int2)pixPos2;
+	float oriDepth2 = _DepthTexture[pixelPos2].x;
+
+
+
+	//int2 screenPos = floor(screenSize.xy);
+
+
+	_OutlineTexture[pixelPos.xy].xy = float2(1, 0.5);// screenPos.xy;
     //Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 }
