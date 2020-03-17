@@ -36,148 +36,152 @@ Texture2D<float> _DepthTexture : register(t0);
 
 cbuffer cb0
 {
-	float4 data0;
-	float4 data1;
-	float4 data2;
-	float4 data3;
-	float4 data4;
-	float4 data5;
-	float4 data6;
-	float4 data7;
-	float4 data8;
+	float4 cb0_data0;//(0.5,-0.5,0.5,0.5),
+	float4 cb0_data1;
+	float4 cb0_data2;
+	float4 cb0_data3;
+	float4 cb0_data4;
+	float4 cb0_data5;
+	float4 cb0_data6;
+	float4 cb0_data7;
+	float4 cb0_data8;
 	float4 screenSize;//(1360,768,0.001,0.001),
-	float4 data10;
+	float4 cb0_data10;
 }
 cbuffer cb1
 {
-	float4 data[138];
+	float4 cb1_data[138];
 	float4 unknownParam0;//0
 	float4 screenSizeParam;//(1360,768,0.001,0.001)
 };
 
-struct SharedBuffer1
-{
-	float4 data[4];
-};
-struct SharedBuffer2
-{
-	float2 data[12];
-};
-struct SharedBuffer3
-{
-	int4 data[4];
-};
-groupshared float3 g0[12];
-groupshared float3 g1[12];
-groupshared int3 g2[12];
-groupshared int3 g3[12];
-groupshared SharedBuffer2 g4[12];
 
-float UpdatePixe (int2 pos,int r0_z,int2 shift)
+//groupshared float3 g0[12][4];
+//groupshared float3 g1[12][4];
+//groupshared int3 g2[12][4];
+//groupshared int3 g3[12][4];
+//groupshared float4 g4[12][6];
+groupshared float g0[12][12];
+groupshared float g1[12][12];
+groupshared int g2[12][12];
+groupshared int g3[12][12];
+groupshared float2 g4[12][12];
+
+float UpdatePixel (int2 pos,int r0_z,int shift1,int shift2)
 {
 	float oriDepth = _DepthTexture[pos].x;//深度值,不知道要不要先做线性化处理
 	//裁剪
 	bool needfilterDepth = oriDepth > 0.875 ? true : false;
-	float unknown2 = oriDepth * 8.0 - 7.0;
-	float filterDepth = needfilterDepth ? unknown2 : oriDepth;//?
+	float filterDepth = needfilterDepth ? oriDepth * 8.0 - 7.0 : oriDepth;//?
 	const float4 b1_65 = (0, 0, 0.1, 0);//todo
-	unknown2 = filterDepth * b1_65.x + b1_65.y;
+	float unknown2 = filterDepth * b1_65.x + b1_65.y;
 	filterDepth = filterDepth * b1_65.z - b1_65.w;
 	filterDepth = 1.0 / filterDepth;//归一化
 	filterDepth = filterDepth + unknown2;
 	//同一个格子内的偏移计算
-	float r4_y = 0.5;
+	uint r4_y = 128;//t1
 	float2 r2_xy = 0;
 	r2_xy = r2_xy * 4.008016 - 2.003978;
+	//这个操作隐示执行
 	//int2 groupYShift = vThreadIDInGroup.yy << (2, 3);//格子内纵向向下偏移几个像素
 	//int2 groupYShift2 = groupYShift + (4，8);
-	g1[r0_z][shift.x].x = oriDepth;
-	g0[r0_z][shift.x].x = filterDepth;
-	int2 r5_xy = unknown2.xy & (2, 1);//?
-	r5_xy = r5_xy != 0;
-	g2[r0_z][shift.x].x = r5_xy.x;
-	g3[r0_z].x = r5_xy.y;
-	g4[r0_z].data[shift.y].xy = r2_xy.xy;
+	g1[r0_z][shift1].x = oriDepth;
+	g0[r0_z][shift1].x = filterDepth;
+	int2 r5_xy = int2(r4_y & 2, r4_y & 1);//应该是指一个特定像素的group内坐标(2,1)
+	r5_xy = r5_xy != 0; //? 1 : 0;//?
+	g2[r0_z][shift1].x = r5_xy.x;
+	g3[r0_z][shift1].x = r5_xy.y;
+	g4[r0_z][shift2].xy = r2_xy.xy;
 	return filterDepth;
 }
 
 //screensize/10 for dispath
 [numthreads(10,10,1)]
-void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线程组内的线程ID，goup内的坐标,同格子用这个偏移
+void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线程组内的线程ID，goup内的坐标,同格子用这个偏移[0,9]
 	int3 vThreadID : SV_DispatchThreadID,//全局ID
-	int idInGroup : SV_GroupIndex,//线程组内的线程ID
+	int idInGroup : SV_GroupIndex,//线程组内的线程ID,1D
 	int3 vThreadGroupID : SV_GroupID)//10,10,1,线程组ID
 {
-	int2 leftTop = floor (unknownParam0.xy);//可能是个偏移
+	int2 leftTop = floor (unknownParam0.xy);//可能是个偏移,r0.xy
 	int4 screenPos = leftTop.xyyy + vThreadID.xyyy;//像素坐标,r1.xyzw
 	int xIndexOfRight10Pixel = vThreadIDInGroup.x + 1;//右边一个像素很坐标索引,r0.z
-	float4 screenPosFloat = (float4)screenPos;
-	float2 rightBottomPos = unknownParam0.xy + screenSizeParam.xy;//右下角坐标，data[138].xy是左上角坐标，data[139].xy是矩形尺寸,r3.xyzw
+	float2 screenPosFloat = (float2)screenPos.xy;//r2.xy
+	float4 rightBottomPos = unknownParam0.xyxy + screenSizeParam.xyxy;//右下角坐标，data[138].xy是左上角坐标，data[139].xy是矩形尺寸,r3.xyzw
 	screenPosFloat.xy = max (screenPosFloat.xy, unknownParam0.xy);//大于左上角
 	screenPosFloat.xy = min (screenPosFloat.xy, rightBottomPos.xy);//小于右下角
-	int2 pixelPos = int2(screenPosFloat.xy);//目标的像素坐标
-	int2 groupYShift = vThreadIDInGroup.yy << (2, 3);//格子内纵向向下偏移几个像素,r2.zw
-	int2 groupYShift2 = groupYShift + (4，8);//r4.zw
-	float filteredDepth0 = UpdatePixel (pixelPos, xIndexOfRight10Pixel, groupYShift2);//r4.x
-	
-	int2 pixelPos1 = vThreadGroupID.xy * 10 + leftTop.xy;//当前格子的左上角像素
-	pixelPos1 -= 1;//当前格子的左上角格子的右下角素
-	int unknown3 = vThreadIDInGroup.y * 10 + vThreadIDInGroup.x;//不知道什么坐标
-	int r5_x = unknown3 / 12;
+	int2 pixelPos = int2(screenPosFloat.xy);//目标的像素坐标//r2.xy
+	//int2 groupYShift = vThreadIDInGroup.yy << int2(2, 3);//格子内纵向向下偏移几个像素,r2.zw
+	//int2 groupYShift2 = groupYShift + int2(4, 8);//r4.zw
+	int2 groupYShift = vThreadIDInGroup.yy;//r2.zw
+	int2 groupYShift2 = vThreadIDInGroup.yy + 1;//这就能解释了,12个单位里,r4.zw
+	float filteredDepth0 = UpdatePixel (pixelPos, xIndexOfRight10Pixel, groupYShift2.x, groupYShift2.y);//r4.x
+	/*
+	leftTop.xy = r0.xy
+	*/
+	int2 pixelLeftTopInGrouPos = vThreadGroupID.xy * 10 + leftTop.xy;//当前格子的左上角像素,leftTop=0
+	pixelLeftTopInGrouPos -= 1;//当前格子的左上角格子的右下角素,r0.xy
+	int unknown3 = vThreadIDInGroup.y * 10 + vThreadIDInGroup.x;//不知道什么坐标,[0,99],r2.x
 	int2  r6;
-	r6.x = unknown3 % 12;
-	r6.y = r5_x;
-	int2 unknown4 = pixelPos1 + r6.xy;
-	float2 pixPos2 = float2(unknown4);
-	pixPos2 = max (cb[138].xy, pixPos2);
+	r6.x = unknown3 % 12;//[0,11]
+	r6.y = unknown3 / 12;//[0,9]
+	float2 pixPos2 = float2(pixelLeftTopInGrouPos + r6.xy);
+	pixPos2 = max (unknownParam0.xy, pixPos2);
 	pixPos2 = min (rightBottomPos, pixPos2);
 	int2 pixelPos2 = (int2)pixPos2;
-	int2 groupShiftP2 = (r5_x, r5_x) << (2, 3);
-	UpdatePixel (pixelPos2, r5_x, r6.x, groupShiftP2);
+	int2 groupShiftP2 = int2(r6.y, r6.y);// (r5_x, r5_x) << (2, 3);
+	UpdatePixel (pixelPos2, r6.x, groupShiftP2.x, groupShiftP2.y);
 
+	//第三个像素
 	int unknown5 = unknown3 + 100;
 	if (unknown5 < 144)
 	{
-		r5_x = unknown5 / 12;
 		r6.x = unknown5 % 12;
-		r6.y = r5_x;
-		pixelPos1 = pixelPos1 + r6;
-		float2 pixPos3 = float2(pixelPos1);
-		pixPos3 = max (cb[138].xy, pixPos3);
+		r6.y = unknown5 / 12;
+		pixelLeftTopInGrouPos = pixelLeftTopInGrouPos + r6;//偏移
+		float2 pixPos3 = float2(pixelLeftTopInGrouPos);
+		pixPos3 = max (unknownParam0.xy, pixPos3);
 		pixPos3 = min (rightBottomPos, pixPos3);
 		int2 pixelPos3 = int2(pixPos3);
-		int2 groupShiftP3 = (r5_x, r5_x) << (2, 3);
-		UpdatePixel (pixelPos3, unknown5, groupShiftP3);
+		int2 groupShiftP3 = (r6.y, r6.y);// << (2, 3);
+		UpdatePixel (pixelPos3, unknown5, groupShiftP3.x, groupShiftP3.y);
 	}
 	GroupMemoryBarrierWithGroupSync ();
+	//如果已经到了屏幕外面(右下角)
 	uint2 screenSize = screenSizeParam.xy;
 	bool isInWin = screenSize.x < vThreadID.x || screenSize.y < vThreadID.y;
 	if (!isInWin)return;
 
-	int4 screenPos_2 = screenPos.xwxw + (-2,-2, 2, 2);//？
+	int4 screenPos_2 = screenPos.xwxw + (-2,-2, 2, 2);//左上、右下2间隔的像素
 	float4 screenPos_2_f = float4(screenPos_2);
-	//屏幕空间外的像素
-	if (!(rightBottomPos.xyzw >= screenPos_2_f.xyzw && screenPos_2_f.xyzw >= unknownParam0.xyxy))
+	//有一个越过屏幕就结束
+	bool checkUnknown1000 = rightBottomPos.xyzw >= screenPos_2_f.xyzw && screenPos_2_f.xyzw >= unknownParam0.xyxy;//在里面的判断
+	if (!checkUnknown1000)
 	{
 		_OutlineTexture[pixelPos.xy].xy = float2(1, 1);
 		return;
 	}
-	int unknown10 = g2[xIndexOfRight10Pixel].data[groupYShift.x].x;//r0.x
-	int right8Pixel = xIndexOfRight10Pixel + 8;//r0.y
+	/*
+	xIndexOfRight10Pixel = r0.z
+	groupYShift2.xy = r4.zw
+	groupYShift.xy = r2.zw
+	*/
+	int unknown10 = g2[xIndexOfRight10Pixel][groupYShift2.x].x;//r0.x
+	int right1Pixel = xIndexOfRight10Pixel + 1;//r0.y
 	int4 unknown11 = vThreadIDInGroup.xyxy + (2, 0, 1, 0);//r3.xyzw
-	int2 unknown12 = unknown11.yw << (2, 2);//r2.xy
+	//int2 unknown12 = unknown11.yw << (2, 2);//r2.xy
+	int2 unknown12 = unknown11.yw;//r2.xy
 
 	int preValue1 = g3[unknown11.x][unknown12.x].x;
-	int2 preValue2 = g3[unknown11.x][groupYShift.x].xy;
-	int3 preValue3 = g3[vThreadIDInGroup.x][xIndexOfRight10Pixel].xyz;
-	int preValue4 = g3[xIndexOfRight10Pixel][right8Pixel].x;//r0.z
+	int2 preValue2 = g3[unknown11.x][groupYShift2.x].xy;
+	int3 preValue3 = g3[vThreadIDInGroup.x][groupYShift.x].xyz;
+	int preValue4 = g3[xIndexOfRight10Pixel][right1Pixel].x;//r0.z
 	int preValue5 = g3[unknown11.z][unknown12.y].x;//r3.z
-	
+	//这里 ld_structured r8.y, r3.z, r2.y, g3.xxxx
 	int2 unknown102 = (preValue3.z, preValue1) | (preValue3.x, preValue2.y);
 	int unknown103 = unknown102.x | unknown102.y;
 	unknown102 = (preValue2.x, preValue3.y) | (preValue4, preValue5);
-	int preValue3.z = unknown102.x | unknown102.y;
-	int unknown103 = preValue3.z | unknown103;
+	preValue3.z = unknown102.x | unknown102.y;
+	unknown103 = preValue3.z | unknown103;
 	int2 unknown104;
 	if (unknown103 != 0)
 	{
@@ -197,8 +201,8 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 		float2 unknown114 = max (unknown109.zw, unknown110.xy);
 		unknown114 = max (unknown114, unknown111);
 		unknown104 = max (unknown112, unknown108);
-		unknown104 = max (unknown113, unknown115);
-		unknown104 = unknown115 * 0.2495 + 0.499992;
+		unknown104 = max (unknown113, unknown104);
+		unknown104 = unknown104 * 0.2495 + 0.499992;
 	}
 	else
 	{
@@ -213,7 +217,7 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	/*
 	unknown11.xz = r3.x
 	preValue4 = r0.z
-	right8Pixel = r0.y
+	right1Pixel = r0.y
 	preValue5 = r3.z
 	unknown104.xy = r3.yw
 	unknown12.xy = r2.xy
@@ -227,7 +231,7 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	float3 depthSelect2 = g1[vThreadIDInGroup.x][groupYShift.x].xyz;
 	float2 depthSelect3 = g1[unknown11.x][groupYShift2.x].yx;
 	float depthSelect4 = g1[preValue5][unknown12.y].x;
-	float depthSelect5 = g1[preValue4][right8Pixel].x;
+	float depthSelect5 = g1[preValue4][right1Pixel].x;
 	float depthMax0 = max (depthSelect2.x, depthSelect2.y);
 	float depthMax1 = max (depthSelect3.x, depthSelect3.y);
 	float depthMax2 = max (depthSelect1, depthSelect4);
@@ -240,7 +244,7 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	float3 filterDepthSelect2 = g0[vThreadIDInGroup.x][groupYShift.x].xyz;
 	float2 filterDepthSelect3 = g0[unknown11.x][groupYShift2.x].yx;
 	float filterDepthSelect4 = g0[preValue5][unknown12.y].x;
-	float filterDepthSelect5 = g0[preValue4][right8Pixel].x;
+	float filterDepthSelect5 = g0[preValue4][right1Pixel].x;
 
 	float4 unknown400;
 	unknown400.xw = filterDepthSelect2.xz;
@@ -251,26 +255,26 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 		filteredDepth0 < unknown400.x ? unknown400.x : filteredDepth0,
 		filteredDepth0 < unknown400.y ? unknown400.y : filteredDepth0,
 		filteredDepth0 < unknown400.z ? unknown400.z : filteredDepth0,
-		filteredDepth0 < unknown400.w ? unknown400.w : filteredDepth0,
+		filteredDepth0 < unknown400.w ? unknown400.w : filteredDepth0
 		);
 
 	float4 bigger2 = float4(
 		filteredDepth0 < filterDepthSelect2.y ? filterDepthSelect2.y : filteredDepth0,
 		filteredDepth0 < filterDepthSelect3.y ? filterDepthSelect3.y : filteredDepth0,
 		filteredDepth0 < filterDepthSelect4 ? filterDepthSelect4 : filteredDepth0,
-		filteredDepth0 < filterDepthSelect5 ? filterDepthSelect5 : filteredDepth0,
+		filteredDepth0 < filterDepthSelect5 ? filterDepthSelect5 : filteredDepth0
 		);
 	float4 smaller1 = float4(
 		filteredDepth0 > unknown400.x ? unknown400.x : filteredDepth0,
 		filteredDepth0 > unknown400.y ? unknown400.y : filteredDepth0,
 		filteredDepth0 > unknown400.z ? unknown400.z : filteredDepth0,
-		filteredDepth0 > unknown400.w ? unknown400.w : filteredDepth0,
+		filteredDepth0 > unknown400.w ? unknown400.w : filteredDepth0
 		);
 	float4 smaller2 = float4(
 		filteredDepth0 > filterDepthSelect2.y ? filterDepthSelect2.y : filteredDepth0,
 		filteredDepth0 > filterDepthSelect3.y ? filterDepthSelect3.y : filteredDepth0,
 		filteredDepth0 > filterDepthSelect4 ? filterDepthSelect4 : filteredDepth0,
-		filteredDepth0 > filterDepthSelect5 ? filterDepthSelect5 : filteredDepth0,
+		filteredDepth0 > filterDepthSelect5 ? filterDepthSelect5 : filteredDepth0
 		);
 	smaller1 = unknown103 ? smaller1 : bigger1;
 	smaller2 = unknown103 ? smaller2 : bigger2;
@@ -278,25 +282,25 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	smaller1 = (smaller1 - filteredDepth0)/ filteredDepth0;
 	smaller2 =(smaller2 - filteredDepth0)/ filteredDepth0;
 
-	float4 adjsmaller1 = smaller1 * cb0[1].xyzw;
-	float4 adjsmaller2 = smaller2 * cb0[2].xyzw;
+	float4 adjsmaller1 = smaller1 * cb0_data1.xyzw;
+	float4 adjsmaller2 = smaller2 * cb0_data2.xyzw;
 	adjsmaller2 = adjsmaller2 * divy;
 
 	adjsmaller1 = adjsmaller1 * divy + adjsmaller2;//r7
-	smaller2 = smaller2 * cb0[4].xyzw;//r6
-	smaller1 = smaller1 * cb0[3].xyzw + smaller2;//r5
+	smaller2 = smaller2 * cb0_data4.xyzw;//r6
+	smaller1 = smaller1 * cb0_data3.xyzw + smaller2;//r5
 	//?
 	float unknown500 = dot (abs (adjsmaller1), float4(1, 1, 1, 1));
 	float unknown501 = dot (abs (smaller1), float4(1, 1, 1, 1));
 	unknown501 = sqrt(unknown501 * unknown501 + unknown500 * unknown500);//r0.x
 	unknown501 = min (unknown501, 1.0);
 	unknown501 = log (unknown501);
-	unknown501 = unknown501 * cb0[10].z;
+	unknown501 = unknown501 * cb0_data10.z;
 	unknown501 = exp (unknown501);
 	unknown501 = 1 - unknown501;
 	float unknown502 = max (unknown501, 0);
-	float4 unknown502 = float4(unknown502, 1, unknown502, unknown502);
+	float4 unknown503 = float4(unknown502, 1, unknown502, unknown502);
 
-	_OutlineTexture[pixelPos.xy].xy = unknown502.xy;// screenPos.xy;
+	_OutlineTexture[pixelPos.xy].xy = unknown503.xy;// screenPos.xy;
     //Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
 }
