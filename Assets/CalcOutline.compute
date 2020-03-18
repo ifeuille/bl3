@@ -1,4 +1,5 @@
-﻿#pragma kernel CSMain
+﻿#pragma enable_d3d11_debug_symbols
+#pragma kernel CSMain
 
 /*
 cb0=
@@ -48,7 +49,8 @@ cbuffer cb0
 }
 cbuffer cb1
 {
-	float4 cb1_data[138];
+	//float4 cb1_data[138];
+	float4 cb1_65;//0,0,0.1,1
 	float4 unknownParam0;//0
 	float4 screenSizeParam;//(1360,768,0.001,0.001)
 };
@@ -68,13 +70,13 @@ groupshared float2 g4[12][12];
 
 float UpdatePixel (int2 pos,int r0_z,int shift1,int shift2)
 {
-	float oriDepth = _DepthTexture[pos].x;//深度值,不知道要不要先做线性化处理
+	float oriDepth = _DepthTexture[pos]/*.x*/;//深度值,不知道要不要先做线性化处理
 	//裁剪
-	bool needfilterDepth = oriDepth > 0.875 ? true : false;
-	float filterDepth = needfilterDepth ? oriDepth * 8.0 - 7.0 : oriDepth;//?
-	const float4 b1_65 = (0, 0, 0.1, 0);//todo
-	float unknown2 = filterDepth * b1_65.x + b1_65.y;
-	filterDepth = filterDepth * b1_65.z - b1_65.w;
+	//bool needfilterDepth = oriDepth > 0.875 ? true : false;
+	float filterDepth = oriDepth > 0.875 ? oriDepth * 8.0 - 7.0 : oriDepth;//?
+	//const float4 b1_65 = (0, 0, 0.1, 0);//todo
+	float unknown2 = filterDepth * cb1_65.x + cb1_65.y;
+	filterDepth = filterDepth * cb1_65.z - cb1_65.w;
 	filterDepth = 1.0 / filterDepth;//归一化
 	filterDepth = filterDepth + unknown2;
 	//同一个格子内的偏移计算
@@ -101,8 +103,9 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	int idInGroup : SV_GroupIndex,//线程组内的线程ID,1D
 	int3 vThreadGroupID : SV_GroupID)//10,10,1,线程组ID
 {
-	int2 leftTop = floor (unknownParam0.xy);//可能是个偏移,r0.xy
-	int4 screenPos = leftTop.xyyy + vThreadID.xyyy;//像素坐标,r1.xyzw
+	int2 leftTop = int2 (unknownParam0.xy);//可能是个偏移,r0.xy
+	int4 screenPos;
+	screenPos .xyzw = leftTop.xyyy + vThreadID.xyyy;//像素坐标,r1.xyzw
 	int xIndexOfRight10Pixel = vThreadIDInGroup.x + 1;//右边一个像素很坐标索引,r0.z
 	float2 screenPosFloat = (float2)screenPos.xy;//r2.xy
 	float4 rightBottomPos = unknownParam0.xyxy + screenSizeParam.xyxy;//右下角坐标，data[138].xy是左上角坐标，data[139].xy是矩形尺寸,r3.xyzw
@@ -114,6 +117,7 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	int2 groupYShift = vThreadIDInGroup.yy;//r2.zw
 	int2 groupYShift2 = vThreadIDInGroup.yy + 1;//这就能解释了,12个单位里,r4.zw
 	float filteredDepth0 = UpdatePixel (pixelPos, xIndexOfRight10Pixel, groupYShift2.x, groupYShift2.y);//r4.x
+	
 	/*
 	leftTop.xy = r0.xy
 	*/
@@ -215,7 +219,7 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 		unknown104 = (0, 0);
 	}
 	//这里是可以优化的移到前面去
-	int unknown200 = unknown103 ? 0 : unknown10;
+	int unknown200 = unknown103 ? 0 : unknown104;
 	if (unknown200 != 0)
 	{
 		_OutlineTexture[pixelPos.xy].xy = float2(1, 1);

@@ -6,6 +6,7 @@
 RWTexture2D<float4> Result;
 
 
+Texture2D<float> _DepthTexture;// : register(t0);
 
 
 
@@ -18,6 +19,8 @@ groupshared int4 g4[12][6];
 [numthreads(10,10,1)]
 void CSMain (uint3 id : SV_DispatchThreadID)
 {
+	float oriDepth = _DepthTexture[id.xy].x;//深度值,不知道要不要先做线性化处理
+
     // TODO: insert actual code here!
 	int2 pixe = id.xy + int2(1,1);// != (0, 0) ? Result[id.xy].xy : 0;
 	//pixe = pixe + Result[id.xy];
@@ -26,5 +29,5 @@ void CSMain (uint3 id : SV_DispatchThreadID)
 	g3[pixe.x][pixe.x].x = Result[id.xy].x;
 	int value = g3[id.x][id.y];
 	int value2 = g3[id.x][id.y];
-    Result[id.xy] =float4(value, value2,0,1);
+    Result[id.xy] =float4(value, value2, oriDepth,1);
 }

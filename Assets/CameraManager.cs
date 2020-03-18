@@ -164,13 +164,26 @@ public class CameraManager : MonoBehaviour
         cb.Clear();
         cb.SetGlobalTexture("_OutlineTexture", m_OutlineTexture);
         cb.SetGlobalTexture("_DepthTexture", GetDepthRTID());
-
+        
         int computeKenel = outLineComputeShader.FindKernel("CSMain");
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb1_65"), new Vector4(0, 0, 0.1f, 0));
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb0_data3"), new Vector4(1, 1, -1, -1));
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb0_data4"), new Vector4(2, -2, 0, 0));
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("unknownParam0"), new Vector4(0, 0, 0, 0));
+        Vector4 scparam = new Vector4(Screen.width, Screen.height, 1.0f / (float)Screen.width, 1.0f / (float)Screen.height);
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("screenSizeParam"), scparam);
+        Vector4 zbufferparams = new Vector4();
+        zbufferparams.x = 1 - cam.farClipPlane / cam.nearClipPlane;
+        zbufferparams.y = cam.farClipPlane / cam.nearClipPlane;
+        zbufferparams.z = zbufferparams.x / cam.farClipPlane;
+        zbufferparams.w = zbufferparams.y / cam.farClipPlane;
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("_ZBufferParams"), zbufferparams);
+
         cb.SetComputeTextureParam(outLineComputeShader, computeKenel, Shader.PropertyToID("_DepthTexture"), GetDepthRTID());
         cb.SetComputeTextureParam(outLineComputeShader, computeKenel, Shader.PropertyToID("_OutlineTexture"), m_OutlineTexture);
         //cb
-        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("screenSize"),
-            new Vector4(Screen.width, Screen.height, 1.0f / Screen.width, 1.0f / Screen.height));
+        //cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("screenSize"),
+        //    new Vector4(Screen.width, Screen.height, 1.0f / Screen.width, 1.0f / Screen.height));
 
         cb.DispatchCompute(outLineComputeShader, computeKenel, x, y, 1);
         //cb.SetRenderTarget(GetColorRTID(), GetDepthRTID());

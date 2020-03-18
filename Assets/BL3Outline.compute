@@ -1,0 +1,212 @@
+﻿#pragma enable_d3d11_debug_symbols
+#pragma kernel CSMain
+
+/*
+cb0=
+{
+[0]=(0.5,-0.5,0.5,0.5),
+[1]=(-1,1,-1,1),
+[2]=(0,0,-2,2),
+[3]=(1,1,-1,-1),
+[4]=(2,-2,0,0),
+[5]=(-1,1,1,1),
+[6]=(-1,-1,1,-1),
+[7]=(0,1,0,-1),
+[8]=(-1,0,1,0),
+[9]=(1360,768,0.001,0.001),
+[10]=(65000,0,2,1)
+};
+b1[65]=(0,0,0.1,0)
+b1[138]=0
+b1[139]=(1360,768,0.001,0.001)
+
+136,77,1
+1360/10,768/10+1
+也就是10x10个像素为一组进行计算
+screensize=1360,768
+
+*/
+
+Texture2D<float> _DepthTexture;// : register(t0);
+
+
+RWTexture2D<float2> _OutlineTexture;
+
+
+cbuffer cb0
+{
+	float4 cb0_data0;//(0.5,-0.5,0.5,0.5),
+	float4 cb0_data1;
+	float4 cb0_data2;
+	float4 cb0_data3;
+	float4 cb0_data4;
+	float4 cb0_data5;
+	float4 cb0_data6;
+	float4 cb0_data7;
+	float4 cb0_data8;
+	//float4 screenSize;//(1360,768,0.001,0.001),
+	float4 cb0_data10;
+}
+cbuffer cb1
+{
+	//float4 cb1_data[138];
+	float4 cb1_65;//0,0,0.1,1
+	float4 unknownParam0;//0
+	float4 screenSizeParam;//(1360,768,0.001,0.001)
+};
+
+
+//groupshared float3 g0[12][4];
+//groupshared float3 g1[12][4];
+//groupshared int g2[12][12];
+//groupshared int3 g3[12][4];
+//groupshared float4 g4[12][6];
+
+groupshared float g0[12][12];
+
+// Values used to linearize the Z buffer (http://www.humus.name/temp/Linearize%20depth.txt)
+// x = 1-far/near
+// y = far/near
+// z = x/far
+// w = y/far
+float4 _ZBufferParams;
+
+float LinearEyeDepth (float z)
+{
+	return 1.0 / (_ZBufferParams.z * z + _ZBufferParams.w);
+}
+
+float UpdatePixel (int2 pos,int x,int y)
+{
+	float filterDepth = LinearEyeDepth (_DepthTexture[pos]);
+	g0[x][y].x = filterDepth;//g0为filter后的
+	return filterDepth;
+}
+
+//screensize/10 for dispath
+[numthreads(10,10,1)]
+void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线程组内的线程ID，goup内的坐标,同格子用这个偏移[0,9]
+	int3 vThreadID : SV_DispatchThreadID,//全局ID
+	int idInGroup : SV_GroupIndex,//线程组内的线程ID,1D
+	int3 vThreadGroupID : SV_GroupID)//10,10,1,线程组ID
+{
+	int4 screenPos;
+	screenPos .xyzw = vThreadID.xyyy;//像素坐标,r1.xyzw
+	float2 screenPosFloat = (float2)screenPos.xy;//r2.xy
+	float4 rightBottomPos = screenSizeParam.xyxy;//右下角坐标，data[138].xy是左上角坐标，data[139].xy是矩形尺寸,r3.xyzw
+	screenPosFloat.xy = max (screenPosFloat.xy, unknownParam0.xy);//大于左上角
+	screenPosFloat.xy = min (screenPosFloat.xy, rightBottomPos.xy);//小于右下角
+	int2 pixelPos = int2(screenPosFloat.xy);//目标的像素坐标//r2.xy
+	float filteredDepth00 = UpdatePixel (pixelPos, vThreadIDInGroup.x + 1, vThreadIDInGroup.y + 1);
+	/*float filteredDepth00 = LinearEyeDepth (_DepthTexture[pixelPos]);
+	g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 1].x = filteredDepth00;*/
+
+	//获取当前格子左上角像素，然后-1得到向量的左上角格子的右下角像素
+	int2 pixelLeftTopInGrouPos = vThreadGroupID.xy * 10;//当前格子的左上角像素,leftTop=0
+	pixelLeftTopInGrouPos -= 1;//当前格子的左上角格子的右下角素,r0.xy
+	int unknown3 = vThreadIDInGroup.y * 10 + vThreadIDInGroup.x;//不知道什么坐标,[0,99],r2.x
+	int2  r6;
+	r6.x = unknown3 % 12;//[0,11]
+	r6.y = unknown3 / 12;//[0,9]
+	float2 pixPos2 = float2(pixelLeftTopInGrouPos + r6.xy);
+	pixPos2 = max (unknownParam0.xy, pixPos2);
+	pixPos2 = min (rightBottomPos, pixPos2);
+	int2 pixelPos2 = (int2)pixPos2;
+	//g0[r6.x][r6.y].x = LinearEyeDepth (_DepthTexture[pixelPos2]);
+	UpdatePixel (pixelPos2, r6.x, r6.y);
+
+	//第三个像素
+	int unknown5 = unknown3 + 100;//10*10,刚好是下一个格子
+	if (unknown5 < 144)
+	{
+		int2 r5_tmp;
+		r5_tmp.x = unknown5 % 12;
+		r5_tmp.y = unknown5 / 12;
+		pixelLeftTopInGrouPos = pixelLeftTopInGrouPos + r5_tmp.xy;//偏移
+		float2 pixPos3 = float2(pixelLeftTopInGrouPos);
+		pixPos3 = max (unknownParam0.xy, pixPos3);
+		pixPos3 = min (rightBottomPos, pixPos3);
+		int2 pixelPos3 = int2(pixPos3);//r6.xy
+		//g0[r5_tmp.x][r5_tmp.y].x = LinearEyeDepth (_DepthTexture[pixelPos3]);
+		UpdatePixel (pixelPos3, r5_tmp.x, r5_tmp.y);
+	}
+
+	GroupMemoryBarrierWithGroupSync ();
+	//如果已经到了屏幕外面(右下角)
+	uint2 screenSize = screenSizeParam.xy;
+	bool isNotInWin = screenSize.x < vThreadID.x || screenSize.y < vThreadID.y;
+	if (isNotInWin)return;
+
+	int4 screenPos_2 = screenPos.xwxw + (-2,-2, 2, 2);//左上、右下2间隔的像素
+	float4 screenPos_2_f = float4(screenPos_2);
+	//有一个越过屏幕就结束
+	bool checkUnknown1000 = rightBottomPos.xyzw >= screenPos_2_f.xyzw && screenPos_2_f.xyzw >= unknownParam0.xyxy;//在里面的判断
+	if (!checkUnknown1000)
+	{
+		_OutlineTexture[pixelPos.xy].xy = float2(1, 1);
+		return;
+	}
+
+	//原始深度
+	//2,0
+	//0,1
+	//2,1
+	//1,2
+	//1,0
+	float filterDepthSelect1 = g0[vThreadIDInGroup.x + 0][vThreadIDInGroup.y + 1];
+	float filterDepthSelect2 = g0[vThreadIDInGroup.x + 0][vThreadIDInGroup.y + 2];
+	float filterDepthSelect3 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 0];
+	float filterDepthSelect4 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 1];
+	float filterDepthSelect5 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 2];
+	float filterDepthSelect6 = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 0];
+	float filterDepthSelect7 = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 1];
+	float filterDepthSelect8 = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 2];
+	_OutlineTexture[screenPos.xy].xy = float2(filterDepthSelect5, filterDepthSelect6);
+	return;
+
+	//与当前像素深度比较,如果旁边的更大则用旁边的
+	float4 bigger1 = float4(
+		filteredDepth00 < filterDepthSelect1 ? filterDepthSelect1 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect2 ? filterDepthSelect2 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect3 ? filterDepthSelect3 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect4 ? filterDepthSelect4 : filteredDepth00
+		);
+
+	float4 bigger2 = float4(
+		filteredDepth00 < filterDepthSelect5 ? filterDepthSelect5 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect6 ? filterDepthSelect6 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect7 ? filterDepthSelect7 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect8 ? filterDepthSelect8 : filteredDepth00
+		);
+
+
+	float4 finaldepth1 = bigger1;
+	float4 finaldepth2 = bigger2;
+	
+	finaldepth1 = (finaldepth1 - filteredDepth00)/ filteredDepth00;
+	finaldepth2 =(finaldepth2 - filteredDepth00)/ filteredDepth00;
+
+	float4 adjsmaller1 = finaldepth1 * cb0_data1.xyzw;
+	float4 adjsmaller2 = finaldepth2 * cb0_data2.xyzw;
+	float divy = screenSizeParam.y * screenSizeParam.z * 1.777778;//? r0.x
+
+	adjsmaller2 = adjsmaller2 * divy;
+
+	adjsmaller1 = adjsmaller1 * divy + adjsmaller2;//r7
+	finaldepth2 = finaldepth2 * cb0_data4.xyzw;//r6
+	finaldepth1 = finaldepth1 * cb0_data3.xyzw + finaldepth2;//r5
+	//?
+	float unknown500 = dot (abs (adjsmaller1), float4(1, 1, 1, 1));
+	float unknown501 = dot (abs (finaldepth1), float4(1, 1, 1, 1));
+	unknown501 = sqrt(unknown501 * unknown501 + unknown500 * unknown500);//r0.x
+	unknown501 = min (unknown501, 1.0);
+	unknown501 = log (unknown501);
+	unknown501 = unknown501 * cb0_data10.z;
+	unknown501 = exp (unknown501);
+	unknown501 = 1 - unknown501;
+	float unknown502 = max (unknown501, 0);
+	float4 unknown503 = float4(unknown502, 1, unknown502, unknown502);
+
+	_OutlineTexture[screenPos.xy].xy = unknown503.xy;// screenPos.xy;
+    //Result[id.xy] = float4(id.x & id.y, (id.x & 15)/15.0, (id.y & 15)/15.0, 0.0);
+}

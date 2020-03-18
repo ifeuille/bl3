@@ -33,6 +33,7 @@
             #pragma fragment frag
             // make fog work
             #pragma multi_compile_fog
+			#pragma enable_d3d11_debug_symbols
 
             #include "UnityCG.cginc"
 
@@ -74,8 +75,8 @@
 			//Fragment Shader  
 			half4 frag (v2f i) : COLOR{
 				//return float4(1, 0, 0, 1);
-				float2 outline1 = tex2D (_OutlineTexture,i.scrPos).rg;
-				return half4(outline1.x, outline1.y, 0, 1);
+			/*	float2 outline1 = tex2D (_OutlineTexture,i.scrPos).rg;
+				return half4(outline1.x, 0, 0, 1);*/
 			    float depthValue = Linear01Depth (tex2Dproj (_CameraDepthTexture,UNITY_PROJ_COORD (i.scrPos)).r);
 				bool needClip = (0.00001 >= depthValue) ? true : false;
 				if (needClip)discard;
