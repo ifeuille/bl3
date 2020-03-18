@@ -64,28 +64,23 @@ cbuffer cb1
 
 groupshared float g0[12][12];
 
-// Values used to linearize the Z buffer (http://www.humus.name/temp/Linearize%20depth.txt)
-// x = 1-far/near
-// y = far/near
-// z = x/far
-// w = y/far
-float4 _ZBufferParams;
-
-float LinearEyeDepth (float z)
-{
-	return 1.0 / (_ZBufferParams.z * z + _ZBufferParams.w);
-}
-
 float UpdatePixel (int2 pos,int x,int y)
 {
-	float filterDepth = LinearEyeDepth (_DepthTexture[pos]);
-	g0[x][y].x = filterDepth;//g0为filter后的
+	float oriDepth = _DepthTexture[pos];
+	float filterDepth = oriDepth > 0.875 ? oriDepth * 8.0 - 7.0 : oriDepth;//?
+	float unknown2 = filterDepth * cb1_65.x + cb1_65.y;
+	filterDepth = filterDepth * cb1_65.z - cb1_65.w;
+	filterDepth = 1.0 / filterDepth;
+	filterDepth = filterDepth + unknown2;
+	g0[x][y].x = filterDepth;
 	return filterDepth;
 }
 
 //screensize/10 for dispath
 [numthreads(10,10,1)]
-void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线程组内的线程ID，goup内的坐标,同格子用这个偏移[0,9]
+void CSMain (
+	//screen.x/10,y/10,1,线程组内的线程ID，goup内的坐标,同格子用这个偏移[0,9]
+	int3 vThreadIDInGroup : SV_GroupThreadID,
 	int3 vThreadID : SV_DispatchThreadID,//全局ID
 	int idInGroup : SV_GroupIndex,//线程组内的线程ID,1D
 	int3 vThreadGroupID : SV_GroupID)//10,10,1,线程组ID
@@ -93,18 +88,16 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	int4 screenPos;
 	screenPos .xyzw = vThreadID.xyyy;//像素坐标,r1.xyzw
 	float2 screenPosFloat = (float2)screenPos.xy;//r2.xy
-	float4 rightBottomPos = screenSizeParam.xyxy;//右下角坐标，data[138].xy是左上角坐标，data[139].xy是矩形尺寸,r3.xyzw
+	float4 rightBottomPos = screenSizeParam.xyxy;
 	screenPosFloat.xy = max (screenPosFloat.xy, unknownParam0.xy);//大于左上角
 	screenPosFloat.xy = min (screenPosFloat.xy, rightBottomPos.xy);//小于右下角
-	int2 pixelPos = int2(screenPosFloat.xy);//目标的像素坐标//r2.xy
+	int2 pixelPos = int2(screenPosFloat.xy);
 	float filteredDepth00 = UpdatePixel (pixelPos, vThreadIDInGroup.x + 1, vThreadIDInGroup.y + 1);
-	/*float filteredDepth00 = LinearEyeDepth (_DepthTexture[pixelPos]);
-	g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 1].x = filteredDepth00;*/
 
 	//获取当前格子左上角像素，然后-1得到向量的左上角格子的右下角像素
 	int2 pixelLeftTopInGrouPos = vThreadGroupID.xy * 10;//当前格子的左上角像素,leftTop=0
 	pixelLeftTopInGrouPos -= 1;//当前格子的左上角格子的右下角素,r0.xy
-	int unknown3 = vThreadIDInGroup.y * 10 + vThreadIDInGroup.x;//不知道什么坐标,[0,99],r2.x
+	int unknown3 = vThreadIDInGroup.y * 10 + vThreadIDInGroup.x;
 	int2  r6;
 	r6.x = unknown3 % 12;//[0,11]
 	r6.y = unknown3 / 12;//[0,9]
@@ -112,7 +105,6 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	pixPos2 = max (unknownParam0.xy, pixPos2);
 	pixPos2 = min (rightBottomPos, pixPos2);
 	int2 pixelPos2 = (int2)pixPos2;
-	//g0[r6.x][r6.y].x = LinearEyeDepth (_DepthTexture[pixelPos2]);
 	UpdatePixel (pixelPos2, r6.x, r6.y);
 
 	//第三个像素
@@ -127,7 +119,6 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 		pixPos3 = max (unknownParam0.xy, pixPos3);
 		pixPos3 = min (rightBottomPos, pixPos3);
 		int2 pixelPos3 = int2(pixPos3);//r6.xy
-		//g0[r5_tmp.x][r5_tmp.y].x = LinearEyeDepth (_DepthTexture[pixelPos3]);
 		UpdatePixel (pixelPos3, r5_tmp.x, r5_tmp.y);
 	}
 
@@ -147,61 +138,53 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 		return;
 	}
 
-	//原始深度
-	//2,0
-	//0,1
-	//2,1
-	//1,2
-	//1,0
-	float filterDepthSelect1 = g0[vThreadIDInGroup.x + 0][vThreadIDInGroup.y + 1];
-	float filterDepthSelect2 = g0[vThreadIDInGroup.x + 0][vThreadIDInGroup.y + 2];
-	float filterDepthSelect3 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 0];
-	float filterDepthSelect4 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 1];
-	float filterDepthSelect5 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 2];
-	float filterDepthSelect6 = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 0];
-	float filterDepthSelect7 = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 1];
-	float filterDepthSelect8 = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 2];
-	_OutlineTexture[screenPos.xy].xy = float2(filterDepthSelect5, filterDepthSelect6);
-	return;
+	float filterDepthSelect22 = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 2];
+	float filterDepthSelect00x = g0[vThreadIDInGroup.x + 0][vThreadIDInGroup.y + 0];//xyz
+	float filterDepthSelect00y = g0[vThreadIDInGroup.x + 0][vThreadIDInGroup.y + 1];//xyz
+	float filterDepthSelect00z = g0[vThreadIDInGroup.x + 0][vThreadIDInGroup.y + 2];//xyz
+	float filterDepthSelect21y = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 1];
+	float filterDepthSelect21x = g0[vThreadIDInGroup.x + 2][vThreadIDInGroup.y + 0];
+	float filterDepthSelect10 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 0]; 
+	float filterDepthSelect11 = g0[vThreadIDInGroup.x + 1][vThreadIDInGroup.y + 1];
 
 	//与当前像素深度比较,如果旁边的更大则用旁边的
 	float4 bigger1 = float4(
-		filteredDepth00 < filterDepthSelect1 ? filterDepthSelect1 : filteredDepth00,
-		filteredDepth00 < filterDepthSelect2 ? filterDepthSelect2 : filteredDepth00,
-		filteredDepth00 < filterDepthSelect3 ? filterDepthSelect3 : filteredDepth00,
-		filteredDepth00 < filterDepthSelect4 ? filterDepthSelect4 : filteredDepth00
+		filteredDepth00 < filterDepthSelect00x ? filterDepthSelect00x : filteredDepth00,
+		filteredDepth00 < filterDepthSelect21x ? filterDepthSelect21x : filteredDepth00,
+		filteredDepth00 < filterDepthSelect22 ? filterDepthSelect22 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect00z ? filterDepthSelect00z : filteredDepth00
 		);
 
 	float4 bigger2 = float4(
-		filteredDepth00 < filterDepthSelect5 ? filterDepthSelect5 : filteredDepth00,
-		filteredDepth00 < filterDepthSelect6 ? filterDepthSelect6 : filteredDepth00,
-		filteredDepth00 < filterDepthSelect7 ? filterDepthSelect7 : filteredDepth00,
-		filteredDepth00 < filterDepthSelect8 ? filterDepthSelect8 : filteredDepth00
+		filteredDepth00 < filterDepthSelect00y ? filterDepthSelect00y : filteredDepth00,
+		filteredDepth00 < filterDepthSelect21y ? filterDepthSelect21y : filteredDepth00,
+		filteredDepth00 < filterDepthSelect10 ? filterDepthSelect10 : filteredDepth00,
+		filteredDepth00 < filterDepthSelect11 ? filterDepthSelect11 : filteredDepth00
 		);
 
 
 	float4 finaldepth1 = bigger1;
 	float4 finaldepth2 = bigger2;
-	
+	//与当前像素的深度差
 	finaldepth1 = (finaldepth1 - filteredDepth00)/ filteredDepth00;
 	finaldepth2 =(finaldepth2 - filteredDepth00)/ filteredDepth00;
 
-	float4 adjsmaller1 = finaldepth1 * cb0_data1.xyzw;
-	float4 adjsmaller2 = finaldepth2 * cb0_data2.xyzw;
+	float4 adj1 = finaldepth1 * cb0_data1.xyzw;
+	float4 adj2 = finaldepth2 * cb0_data2.xyzw;
 	float divy = screenSizeParam.y * screenSizeParam.z * 1.777778;//? r0.x
 
-	adjsmaller2 = adjsmaller2 * divy;
+	adj2 = adj2 * divy;
 
-	adjsmaller1 = adjsmaller1 * divy + adjsmaller2;//r7
+	adj1 = adj1 * divy + adj2;//r7
 	finaldepth2 = finaldepth2 * cb0_data4.xyzw;//r6
 	finaldepth1 = finaldepth1 * cb0_data3.xyzw + finaldepth2;//r5
-	//?
-	float unknown500 = dot (abs (adjsmaller1), float4(1, 1, 1, 1));
+	//原理跟tonemap类似，用一条曲线，来将深度差映射到期望的域上
+	float unknown500 = dot (abs (adj1), float4(1, 1, 1, 1));
 	float unknown501 = dot (abs (finaldepth1), float4(1, 1, 1, 1));
 	unknown501 = sqrt(unknown501 * unknown501 + unknown500 * unknown500);//r0.x
 	unknown501 = min (unknown501, 1.0);
 	unknown501 = log (unknown501);
-	unknown501 = unknown501 * cb0_data10.z;
+	unknown501 = unknown501 * cb0_data10.z;//65000,0,2,1
 	unknown501 = exp (unknown501);
 	unknown501 = 1 - unknown501;
 	float unknown502 = max (unknown501, 0);

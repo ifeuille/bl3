@@ -167,17 +167,15 @@ public class CameraManager : MonoBehaviour
         
         int computeKenel = outLineComputeShader.FindKernel("CSMain");
         cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb1_65"), new Vector4(0, 0, 0.1f, 0));
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb0_data1"), new Vector4(-1, 1, -1, 1));
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb0_data2"), new Vector4(0, 0, -2, 2));
         cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb0_data3"), new Vector4(1, 1, -1, -1));
         cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb0_data4"), new Vector4(2, -2, 0, 0));
+        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("cb0_data10"), new Vector4(65000, 0, 2, 1));
+        
         cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("unknownParam0"), new Vector4(0, 0, 0, 0));
         Vector4 scparam = new Vector4(Screen.width, Screen.height, 1.0f / (float)Screen.width, 1.0f / (float)Screen.height);
         cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("screenSizeParam"), scparam);
-        Vector4 zbufferparams = new Vector4();
-        zbufferparams.x = 1 - cam.farClipPlane / cam.nearClipPlane;
-        zbufferparams.y = cam.farClipPlane / cam.nearClipPlane;
-        zbufferparams.z = zbufferparams.x / cam.farClipPlane;
-        zbufferparams.w = zbufferparams.y / cam.farClipPlane;
-        cb.SetComputeVectorParam(outLineComputeShader, Shader.PropertyToID("_ZBufferParams"), zbufferparams);
 
         cb.SetComputeTextureParam(outLineComputeShader, computeKenel, Shader.PropertyToID("_DepthTexture"), GetDepthRTID());
         cb.SetComputeTextureParam(outLineComputeShader, computeKenel, Shader.PropertyToID("_OutlineTexture"), m_OutlineTexture);
@@ -188,7 +186,8 @@ public class CameraManager : MonoBehaviour
         cb.DispatchCompute(outLineComputeShader, computeKenel, x, y, 1);
         //cb.SetRenderTarget(GetColorRTID(), GetDepthRTID());
         //cb.DrawProcedural(Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3);
-        cb.Blit(m_OutlineTexture, GetColorRTID());
+        cb.SetGlobalVector("_FilterValue", new Vector4(1500, 10000, 0.9f, 0.374f));
+        cb.Blit(m_OutlineTexture, GetColorRTID(),material);
     }
 
 

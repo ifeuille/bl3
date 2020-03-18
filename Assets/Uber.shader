@@ -13,7 +13,8 @@
 		Cull Off ZWrite On ZTest Off
 		// Blending matches SDK Sample, which 
 		// works in terms of (1-a) and otherwise premultiplied.
-		Blend One SrcAlpha
+		//Blend One SrcAlpha
+		Blend DstColor Zero
 		ColorMask RGBA
 
 		/*Stencil {
@@ -75,16 +76,16 @@
 			//Fragment Shader  
 			half4 frag (v2f i) : COLOR{
 				//return float4(1, 0, 0, 1);
-			/*	float2 outline1 = tex2D (_OutlineTexture,i.scrPos).rg;
+		/*		float2 outline1 = tex2D (_OutlineTexture,i.scrPos).rg;
 				return half4(outline1.x, 0, 0, 1);*/
 			    float depthValue = Linear01Depth (tex2Dproj (_CameraDepthTexture,UNITY_PROJ_COORD (i.scrPos)).r);
-				bool needClip = (0.00001 >= depthValue) ? true : false;
-				if (needClip)discard;
+				if (0.00001 >= depthValue)discard;
 				float outline = tex2D (_OutlineTexture,i.scrPos).r;
-				if (outline < _FilterValue)
+				if (outline < _FilterValue)//1500,10000,0.9,0.374
 				{
 					return _OutlineColor;
 				}
+				discard;
 				return float4(0, 0, 0, 0);
 				//float4 color = tex2D (_MainTex, i.scrPos);
 			}

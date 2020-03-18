@@ -10,24 +10,17 @@ Texture2D<float> _DepthTexture;// : register(t0);
 
 
 
-groupshared float3 g0[12][4];
-groupshared float3 g1[12][4];
-groupshared int3 g2[12][4];
-groupshared int4 g3[12][3];
-groupshared int4 g4[12][6];
+groupshared int g3[12][12];
 //一个int占4
 [numthreads(10,10,1)]
-void CSMain (uint3 id : SV_DispatchThreadID)
+void CSMain (uint3 id : SV_DispatchThreadID,
+	int3 vThreadGroupID : SV_GroupID,
+	int3 vThreadIDInGroup : SV_GroupThreadID)//10,10,1,线程组ID
 {
-	float oriDepth = _DepthTexture[id.xy].x;//深度值,不知道要不要先做线性化处理
-
-    // TODO: insert actual code here!
-	int2 pixe = id.xy + int2(1,1);// != (0, 0) ? Result[id.xy].xy : 0;
-	//pixe = pixe + Result[id.xy];
-	g3[pixe.x][pixe.y].x = Result[id.xy].x;//todo测试groupshared的读写偏移计算公式
+	g3[vThreadIDInGroup.x][vThreadIDInGroup.y] = _DepthTexture[id.xy].x;//todo测试groupshared的读写偏移计算公式
 	GroupMemoryBarrierWithGroupSync ();
-	g3[pixe.x][pixe.x].x = Result[id.xy].x;
-	int value = g3[id.x][id.y];
-	int value2 = g3[id.x][id.y];
-    Result[id.xy] =float4(value, value2, oriDepth,1);
+	int value = g3[vThreadIDInGroup.x][vThreadIDInGroup.y+1];
+	int value2 = g3[vThreadIDInGroup.x][vThreadIDInGroup.y];
+	//int value3 = g3[vThreadIDInGroup.x][vThreadIDInGroup.y + 2];
+    Result[id.xy] =float4(value, value2, 0,1);
 }
