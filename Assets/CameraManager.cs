@@ -181,7 +181,7 @@ public class CameraManager : MonoBehaviour
 
     void OnPostRender()
     {
-        
+        //Graphics.Blit(depthRT, null as RenderTexture);
         Graphics.Blit(colorRT, null as RenderTexture);
     }
 

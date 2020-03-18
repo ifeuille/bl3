@@ -1,5 +1,4 @@
-﻿// Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CSMain
+﻿#pragma kernel CSMain
 
 /*
 cb0=
@@ -27,11 +26,10 @@ screensize=1360,768
 
 */
 
-// Create a RenderTexture with enableRandomWrite flag and set it
-// with cs.SetTexture
-RWTexture2D<float2> _OutlineTexture;
+Texture2D<float> _DepthTexture;// : register(t0);
 
-Texture2D<float> _DepthTexture : register(t0);
+
+RWTexture2D<float2> _OutlineTexture;
 
 
 cbuffer cb0
@@ -58,9 +56,10 @@ cbuffer cb1
 
 //groupshared float3 g0[12][4];
 //groupshared float3 g1[12][4];
-//groupshared int3 g2[12][4];
+//groupshared int g2[12][12];
 //groupshared int3 g3[12][4];
 //groupshared float4 g4[12][6];
+
 groupshared float g0[12][12];
 groupshared float g1[12][12];
 groupshared int g2[12][12];
@@ -135,15 +134,15 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	int unknown5 = unknown3 + 100;
 	if (unknown5 < 144)
 	{
-		r6.x = unknown5 % 12;
-		r6.y = unknown5 / 12;
-		pixelLeftTopInGrouPos = pixelLeftTopInGrouPos + r6;//偏移
+		int2 r5_tmp;
+		r5_tmp.x = unknown5 % 12;
+		r5_tmp.y = unknown5 / 12;
+		pixelLeftTopInGrouPos = pixelLeftTopInGrouPos + r5_tmp.xy;//偏移
 		float2 pixPos3 = float2(pixelLeftTopInGrouPos);
 		pixPos3 = max (unknownParam0.xy, pixPos3);
 		pixPos3 = min (rightBottomPos, pixPos3);
-		int2 pixelPos3 = int2(pixPos3);
-		int2 groupShiftP3 = (r6.y, r6.y);// << (2, 3);
-		UpdatePixel (pixelPos3, unknown5, groupShiftP3.x, groupShiftP3.y);
+		int2 pixelPos3 = int2(pixPos3);//r6.xy
+		UpdatePixel (pixelPos3, r5_tmp.x, pixelPos3.x, pixelPos3.y);
 	}
 	GroupMemoryBarrierWithGroupSync ();
 	//如果已经到了屏幕外面(右下角)
@@ -172,25 +171,32 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	int2 unknown12 = unknown11.yw;//r2.xy
 
 	int preValue1 = g3[unknown11.x][unknown12.x].x;
-	int2 preValue2 = g3[unknown11.x][groupYShift2.x].xy;
-	int3 preValue3 = g3[vThreadIDInGroup.x][groupYShift.x].xyz;
+	//int2 preValue2 = g3[unknown11.x][groupYShift2.x].xy;
+	int preValue2 = g3[unknown11.x][groupYShift2.x];
+	//int3 preValue3 = g3[vThreadIDInGroup.x][groupYShift.x].xyz;
+	int preValue3 = g3[vThreadIDInGroup.x][groupYShift.x].x;
 	int preValue4 = g3[xIndexOfRight10Pixel][right1Pixel].x;//r0.z
 	int preValue5 = g3[unknown11.z][unknown12.y].x;//r3.z
 	//这里 ld_structured r8.y, r3.z, r2.y, g3.xxxx
-	int2 unknown102 = (preValue3.z, preValue1) | (preValue3.x, preValue2.y);
-	int unknown103 = unknown102.x | unknown102.y;
-	unknown102 = (preValue2.x, preValue3.y) | (preValue4, preValue5);
-	preValue3.z = unknown102.x | unknown102.y;
-	unknown103 = preValue3.z | unknown103;
+	//int2 unknown102 = (preValue3.z, preValue1) | (preValue3.x, preValue2.y);
+	//int unknown103 = unknown102.x | unknown102.y;
+	//unknown102 = (preValue2.x, preValue3.y) | (preValue4, preValue5);
+	//preValue3.z = unknown102.x | unknown102.y;
+	//unknown103 = preValue3.z | unknown103;
 	int2 unknown104;
+	//bool unknown103 = preValue1 | preValue2.x | preValue2.y | preValue3.x | preValue3.y | preValue3.z | preValue4 | preValue5;
+	bool unknown103 = preValue1 | preValue2| preValue3 | preValue4 | preValue5;
+
 	if (unknown103 != 0)
 	{
-		float2 unknown105 = g4[vThreadIDInGroup.x][groupYShift.x].xy;
-		float unknown106 = groupYShift.y + 16;//r2.w
-		int2 unknown107 = unknown11.yw << (3, 3);//好像是stride决定的,48是2，96是3,r3.yw
+		float2 unknown105 = g4[vThreadIDInGroup.x][groupYShift.y].xy;
+		float unknown106 = groupYShift.y + 1;//r2.w
+		int2 unknown107 = unknown11.yw;// << (3, 3);//好像是stride决定的,48是2，96是3,r3.yw
 		float2 unknown108 = g4[unknown11.x][unknown107.x].xy;
-		float4 unknown109 = g4[unknown11.x][groupYShift2.y].xyzw;
-		float4 unknown110 = g4[vThreadIDInGroup.x][groupYShift2.y].xyzw;
+		//float4 unknown109 = g4[unknown11.x][groupYShift2.y].xyzw;
+		float4 unknown109 = g4[unknown11.x][groupYShift2.y].xyxy;
+		//float4 unknown110 = g4[vThreadIDInGroup.x][groupYShift2.y].xyzw;
+		float4 unknown110 = g4[vThreadIDInGroup.x][groupYShift2.y].xyxy;
 		float2 unknown111 = g4[xIndexOfRight10Pixel][unknown106].xy;
 		float2 unknown112 = g4[unknown11.z][unknown107.y].xy;
 
@@ -198,7 +204,7 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 		float2 unknown113 = max (unknown105, unknown109.zw);
 		unknown113 = max (unknown113, unknown110.zw);
 		unknown113 = max (unknown113, unknown108);
-		float2 unknown114 = max (unknown109.zw, unknown110.xy);
+		float2 unknown114 = max (unknown109.xy, unknown110.xy);
 		unknown114 = max (unknown114, unknown111);
 		unknown104 = max (unknown112, unknown108);
 		unknown104 = max (unknown113, unknown104);
@@ -208,6 +214,7 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	{
 		unknown104 = (0, 0);
 	}
+	//这里是可以优化的移到前面去
 	int unknown200 = unknown103 ? 0 : unknown10;
 	if (unknown200 != 0)
 	{
@@ -228,8 +235,10 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	*/
 	float divy = screenSizeParam.y * screenSizeParam.z * 1.777778;//? r0.x
 	float depthSelect1 = g1[unknown11.x][unknown12.x].x;
-	float3 depthSelect2 = g1[vThreadIDInGroup.x][groupYShift.x].xyz;
-	float2 depthSelect3 = g1[unknown11.x][groupYShift2.x].yx;
+	//float3 depthSelect2 = g1[vThreadIDInGroup.x][groupYShift.x].xyz;
+	float3 depthSelect2 = g1[vThreadIDInGroup.x][groupYShift.x].xxx;
+	//float2 depthSelect3 = g1[unknown11.x][groupYShift2.x].yx;
+	float2 depthSelect3 = g1[unknown11.x][groupYShift2.x].xx;
 	float depthSelect4 = g1[preValue5][unknown12.y].x;
 	float depthSelect5 = g1[preValue4][right1Pixel].x;
 	float depthMax0 = max (depthSelect2.x, depthSelect2.y);
@@ -241,8 +250,10 @@ void CSMain (int3 vThreadIDInGroup : SV_GroupThreadID,//screen.x/10,y/10,1,线�
 	depthMax0 = max (depthMax0, depthMax1);//r2.w
 
 	float filterDepthSelect1 = g0[unknown11.x][unknown12.x].x;
-	float3 filterDepthSelect2 = g0[vThreadIDInGroup.x][groupYShift.x].xyz;
-	float2 filterDepthSelect3 = g0[unknown11.x][groupYShift2.x].yx;
+	//float3 filterDepthSelect2 = g0[vThreadIDInGroup.x][groupYShift.x].xyz;
+	float3 filterDepthSelect2 = g0[vThreadIDInGroup.x][groupYShift.x].xxx;
+	//float2 filterDepthSelect3 = g0[unknown11.x][groupYShift2.x].yx;
+	float2 filterDepthSelect3 = g0[unknown11.x][groupYShift2.x].xx;
 	float filterDepthSelect4 = g0[preValue5][unknown12.y].x;
 	float filterDepthSelect5 = g0[preValue4][right1Pixel].x;
 
