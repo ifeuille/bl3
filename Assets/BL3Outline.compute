@@ -55,13 +55,6 @@ cbuffer cb1
 	float4 screenSizeParam;//(1360,768,0.001,0.001)
 };
 
-
-//groupshared float3 g0[12][4];
-//groupshared float3 g1[12][4];
-//groupshared int g2[12][12];
-//groupshared int3 g3[12][4];
-//groupshared float4 g4[12][6];
-
 groupshared float g0[12][12];
 
 float UpdatePixel (int2 pos,int x,int y)
@@ -108,7 +101,7 @@ void CSMain (
 	UpdatePixel (pixelPos2, r6.x, r6.y);
 
 	//第三个像素
-	int unknown5 = unknown3 + 100;//10*10,刚好是下一个格子
+	int unknown5 = unknown3 + 100;//10*10
 	if (unknown5 < 144)
 	{
 		int2 r5_tmp;
